@@ -49,7 +49,7 @@
 pip install -r requirements.txt
 
 # Finetune and evaluation
-python main.py --config config.yaml --eval-only
+python main.py --config config.yaml 
 
 # Only evaluation of pretrained model (from config)
 python main.py --config config.yaml --eval-only
