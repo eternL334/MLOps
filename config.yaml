@@ -1,0 +1,51 @@
+# Experiment Configuration
+experiment:
+  name: "e5-small-fiqa"
+  output_dir: "./outputs"
+  log_dir: "./logs"
+  random_seed: 42
+
+# Data Configuration
+data:
+  dataset_name: "fiqa"
+  max_query_length: 128
+  max_doc_length: 256
+  cache_dir: "./data_cache"
+
+# Model Configuration
+model:
+  model_name: "intfloat/e5-small-v2"
+  embedding_dim: 384
+  pooling: "mean"  # mean, cls
+  normalize_embeddings: true
+
+# Training Configuration
+training:
+  num_epochs: 2
+  batch_size: 32
+  learning_rate: 1.0e-5
+  warmup_steps: 50
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  gradient_accumulation_steps: 1
+  fp16: true
+  dataloader_num_workers: 4
+  
+  # Loss function
+  loss_type: "contrastive"  # contrastive, triplet
+  temperature: 0.05
+  num_negatives: 5  # number of hard negatives per query
+
+# Evaluation Configuration
+evaluation:
+  batch_size: 128
+  top_k: [1, 3, 5, 10, 20, 100]
+  metrics: ["ndcg@10", "recall@10", "mrr@10"]
+  eval_steps: 500
+  save_steps: 500
+
+# Vector Index Configuration
+index:
+  type: "faiss"  # faiss or simple
+  metric: "cosine"  # cosine, dot, l2
+  use_gpu: false
