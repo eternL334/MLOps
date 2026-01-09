@@ -1,4 +1,4 @@
 [core]
-    remote = mygdrive
-['remote "mygdrive"']
-    url = gdrive://1LrOtr_s416NLwRdOMn7b-zvgbFWt2GEl
+    remote = local_storage
+['remote "local_storage"']
+    url = /home/eternl/ml/mmp/sem9/mlops-dvc
