@@ -12,10 +12,10 @@ import json
 import os
 import sys
 
-from src.config import load_config
-from src.utils import setup_logging, set_seed
-from src.data_loader import FiQADataset
-from src.model import DenseRetriever
+from .config import load_config
+from .utils import setup_logging, set_seed
+from .data_loader import FiQADataset
+from .model import DenseRetriever
 
 logger = logging.getLogger(__name__)
 

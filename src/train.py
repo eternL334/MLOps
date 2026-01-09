@@ -11,9 +11,9 @@ from tqdm import tqdm
 import os
 import argparse
 import json
-from src.config import load_config
-from src.model import DenseRetriever
-from src.utils import setup_logging, set_seed, create_output_dirs
+from .config import load_config
+from .model import DenseRetriever
+from .utils import setup_logging, set_seed, create_output_dirs
 
 logger = logging.getLogger(__name__)
 

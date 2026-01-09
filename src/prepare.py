@@ -2,7 +2,7 @@ import argparse
 import os
 import json
 import logging
-from data_loader import FiQADataset 
+from .data_loader import FiQADataset 
 
 logging.basicConfig(level=logging.INFO)
 
