@@ -1,0 +1,6 @@
+outs:
+- md5: 55942e366932bd3eb83d303a7dbc6734.dir
+  size: 48909169
+  nfiles: 5
+  hash: md5
+  path: fiqa
