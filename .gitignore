@@ -5,4 +5,5 @@ logs
 outputs
 *.ipynb
 *.zip
+metrics.json
 __pycache__
