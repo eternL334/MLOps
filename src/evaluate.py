@@ -7,6 +7,16 @@ from typing import Dict, List, Tuple
 import faiss
 from collections import defaultdict
 
+import argparse
+import json
+import os
+import sys
+
+from src.config import load_config
+from src.utils import setup_logging, set_seed
+from src.data_loader import FiQADataset
+from src.model import DenseRetriever
+
 logger = logging.getLogger(__name__)
 
 
@@ -265,3 +275,54 @@ def evaluate_model(
         logger.info(f"  {metric_name}: {value:.4f}")
     
     return metrics
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Evaluate Dense Retriever (DVC Stage)")
+    
+    parser.add_argument("--config", type=str, required=True, help="Путь к конфигу")
+    parser.add_argument("--model_path", type=str, required=True, help="Путь к папке с моделью (output от train)")
+    parser.add_argument("--raw_data_path", type=str, required=True, help="Путь папки с сырыми данными (из dvc add)")
+    parser.add_argument("--metrics_file", type=str, required=True, help="Куда сохранить JSON с метриками")
+    
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+    setup_logging(log_dir=config.experiment.log_dir, log_file="evaluate_dvc.log")
+    set_seed(config.experiment.random_seed)
+
+    logger.info("DVC Evaluation Stage Started")
+
+    logger.info(f"Loading data from {args.raw_data_path}")
+    dataset = FiQADataset(
+        dataset_name=config.data.dataset_name,
+        cache_dir=os.path.dirname(args.raw_data_path) 
+    )
+    dataset.load_data()
+
+    logger.info(f"Loading model from {args.model_path}")
+    model = DenseRetriever.load_model(model_path=args.model_path)
+
+    metrics = {}
+    
+    logger.info("Evaluating on DEV split")
+    metrics['dev'] = evaluate_model(
+        model=model,
+        dataset=dataset,
+        config=config,
+        split="dev"
+    )
+
+    logger.info("Evaluating on TEST split")
+    metrics['test'] = evaluate_model(
+        model=model,
+        dataset=dataset,
+        config=config,
+        split="test"
+    )
+
+    logger.info(f"Saving metrics to {args.metrics_file}")
+    with open(args.metrics_file, 'w') as f:
+        json.dump(metrics, f, indent=2)
+
+    logger.info("Evaluation completed successfully.")

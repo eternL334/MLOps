@@ -9,6 +9,11 @@ from transformers import get_linear_schedule_with_warmup
 from typing import List, Dict
 from tqdm import tqdm
 import os
+import argparse
+import json
+from src.config import load_config
+from src.model import DenseRetriever
+from src.utils import setup_logging, set_seed, create_output_dirs
 
 logger = logging.getLogger(__name__)
 
@@ -308,3 +313,48 @@ class Trainer:
         )
         self.model.save_model(checkpoint_dir)
         logger.info(f"Checkpoint saved to {checkpoint_dir}")
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True, help="Config path")
+    parser.add_argument("--train_file", type=str, required=True, help="DVC path")
+    parser.add_argument("--output_dir", type=str, required=True, help="Save model path")
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+    setup_logging(log_dir=config.experiment.log_dir, log_file="train_dvc.log")
+    set_seed(config.experiment.random_seed)
+    
+    logger.info(f"Loading training data from {args.train_file}...")
+    training_samples = []
+    with open(args.train_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            training_samples.append(json.loads(line))
+    
+    logger.info(f"Loaded {len(training_samples)} samples")
+
+    model = DenseRetriever(
+        model_name=config.model.model_name,
+        normalize_embeddings=config.model.normalize_embeddings
+    )
+
+    train_dataset = RetrievalDataset(
+        samples=training_samples,
+        tokenizer=model.tokenizer,
+        max_query_len=config.data.max_query_length,
+        max_doc_len=config.data.max_doc_length
+    )
+
+    trainer = Trainer(
+        model=model,
+        train_dataset=train_dataset,
+        config=config,
+        output_dir=args.output_dir
+    )
+
+    trainer.train()
+
+    logger.info(f"Saving model to {args.output_dir}")
+    model.save_model(args.output_dir)
