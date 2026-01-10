@@ -2,7 +2,8 @@ venv
 .pytest_cache
 data_cache
 logs
-outputs
+outputs/
+!outputs/final_model
 *.ipynb
 *.zip
 metrics.json
