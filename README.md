@@ -45,15 +45,16 @@
 ## Установка
 
 ```bash
-# Установка зависимостей
+git clone https://github.com/eternL334/MLOps
+cd MLOps
 pip install -r requirements.txt
 
-# Finetune and evaluation
-python main.py --config config.yaml 
+dvc repro # full pipeline
 
-# Only evaluation of pretrained model (from config)
-python main.py --config config.yaml --eval-only
+dvc repro prepare   # preprocessing
+dvc repro train     # training
+dvc repro evaluate  # evaluation
 
-# Only evaluation of finetuned model (from path)
-python main.py --config config.yaml --eval-only --model-path ./outputs/final_model
+mlflow ui # for metrics ui
+
 ```

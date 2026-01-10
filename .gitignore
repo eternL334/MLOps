@@ -6,4 +6,5 @@ outputs
 *.ipynb
 *.zip
 metrics.json
+mlruns
 __pycache__
