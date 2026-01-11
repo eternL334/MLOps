@@ -1,0 +1,38 @@
+stages:
+  prepare:
+    cmd: python -m src.prepare --raw_data_path data/fiqa --output_file data/processed/train.jsonl
+    deps:
+      - data/fiqa
+      - src/prepare.py
+    outs:
+      - data/processed/train.jsonl
+
+  train:
+    cmd: python -m src.train --config config.yaml --train_file data/processed/train.jsonl --output_dir outputs/final_model
+    deps:
+      - data/processed/train.jsonl
+      - src/train.py
+      - config.yaml
+    outs:
+      - outputs/final_model
+    
+  index:
+    cmd: python -m src.build_index --config config.yaml --model_path outputs/final_model --raw_data_path data/fiqa --index_out data/index/fiqa.index
+    deps:
+      - outputs/final_model
+      - data/fiqa
+      - src/build_index.py
+    outs:
+      - data/index/fiqa.index         
+      - data/index/fiqa.index.ids.pkl 
+
+  evaluate:
+    cmd: python -m src.evaluate --config config.yaml --model_path outputs/final_model --raw_data_path data/fiqa --metrics_file metrics.json
+    deps:
+      - outputs/final_model
+      - data/fiqa
+      - src/evaluate.py
+      - config.yaml
+    metrics:
+      - metrics.json:
+          cache: false

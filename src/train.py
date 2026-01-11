@@ -9,6 +9,13 @@ from transformers import get_linear_schedule_with_warmup
 from typing import List, Dict
 from tqdm import tqdm
 import os
+import argparse
+import json
+import mlflow
+
+from .config import load_config
+from .model import DenseRetriever
+from .utils import setup_logging, set_seed, create_output_dirs
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +212,9 @@ class Trainer:
             for step, batch in enumerate(progress_bar):
                 loss = self.training_step(batch)
                 epoch_loss += loss
+
+                mlflow.log_metric("train_loss", loss, step=self.global_step)
+                mlflow.log_metric("learning_rate", self.scheduler.get_last_lr()[0], step=self.global_step)
                 
                 # Update progress bar
                 progress_bar.set_postfix({'loss': f'{loss:.4f}'})
@@ -308,3 +318,70 @@ class Trainer:
         )
         self.model.save_model(checkpoint_dir)
         logger.info(f"Checkpoint saved to {checkpoint_dir}")
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True, help="Config path")
+    parser.add_argument("--train_file", type=str, required=True, help="DVC path")
+    parser.add_argument("--output_dir", type=str, required=True, help="Save model path")
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+    setup_logging(log_dir=config.experiment.log_dir, log_file="train_dvc.log")
+    set_seed(config.experiment.random_seed)
+    
+    mlflow.set_tracking_uri("file://" + os.path.abspath("mlruns"))
+    
+    mlflow.set_experiment(config.experiment.name)
+
+    mlflow.pytorch.autolog()
+
+    logger.info(f"Loading training data from {args.train_file}...")
+    training_samples = []
+    with open(args.train_file, 'r', encoding='utf-8') as f:
+         for line in f:
+             training_samples.append(json.loads(line))
+
+    with mlflow.start_run() as run:
+        logger.info(f"MLflow run started: {run.info.run_id}")
+
+        mlflow.log_params({
+            "model_name": config.model.model_name,
+            "epochs": config.training.num_epochs,
+            "batch_size": config.training.batch_size,
+            "learning_rate": config.training.learning_rate,
+            "temperature": config.training.temperature,
+            "num_negatives": config.training.num_negatives
+        })
+
+        dvc_lock_path = "dvc.lock"
+        if os.path.exists(dvc_lock_path):
+            mlflow.log_artifact(dvc_lock_path, artifact_path="dvc_metadata")
+            
+        mlflow.log_artifact(args.config, artifact_path="configs")
+
+        model = DenseRetriever(
+            model_name=config.model.model_name,
+            normalize_embeddings=config.model.normalize_embeddings
+        )
+
+        train_dataset = RetrievalDataset(
+            training_samples,
+            model.tokenizer,
+            config.data.max_query_length,
+            config.data.max_doc_length
+        )
+
+        trainer = Trainer(
+            model=model,
+            train_dataset=train_dataset,
+            config=config,
+            output_dir=args.output_dir
+        )
+
+        trainer.train()
+
+        logger.info(f"Saving model to {args.output_dir}")
+        model.save_model(args.output_dir)

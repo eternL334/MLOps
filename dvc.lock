@@ -1,0 +1,97 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python -m src.prepare --raw_data_path data/fiqa --output_file 
+      data/processed/train.jsonl
+    deps:
+    - path: data/fiqa
+      hash: md5
+      md5: 55942e366932bd3eb83d303a7dbc6734.dir
+      size: 48909169
+      nfiles: 5
+    - path: src/prepare.py
+      hash: md5
+      md5: fac777ec624137e19d6700d6a0de9388
+      size: 955
+    outs:
+    - path: data/processed/train.jsonl
+      hash: md5
+      md5: 86534058657f6347395293573298a0b5
+      size: 11023120
+  train:
+    cmd: python -m src.train --config config.yaml --train_file 
+      data/processed/train.jsonl --output_dir outputs/final_model
+    deps:
+    - path: config.yaml
+      hash: md5
+      md5: 2ecb83baa55be5625b30d453f03dc212
+      size: 1076
+    - path: data/processed/train.jsonl
+      hash: md5
+      md5: 86534058657f6347395293573298a0b5
+      size: 11023120
+    - path: src/train.py
+      hash: md5
+      md5: cef96fd0143c2ce4e4fe24c066103c35
+      size: 13341
+    outs:
+    - path: outputs/final_model
+      hash: md5
+      md5: 4e3d9a1de2dbdc3201e2ec1424c72cfe.dir
+      size: 134407598
+      nfiles: 7
+  evaluate:
+    cmd: python -m src.evaluate --config config.yaml --model_path 
+      outputs/final_model --raw_data_path data/fiqa --metrics_file metrics.json
+    deps:
+    - path: config.yaml
+      hash: md5
+      md5: 2ecb83baa55be5625b30d453f03dc212
+      size: 1076
+    - path: data/fiqa
+      hash: md5
+      md5: 55942e366932bd3eb83d303a7dbc6734.dir
+      size: 48909169
+      nfiles: 5
+    - path: outputs/final_model
+      hash: md5
+      md5: 4e3d9a1de2dbdc3201e2ec1424c72cfe.dir
+      size: 134407598
+      nfiles: 7
+    - path: src/evaluate.py
+      hash: md5
+      md5: d1b991987cacfb302fa7f789f9764522
+      size: 11724
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: 13adaa7f0174d8036f2a6ff3cf6dd475
+      size: 1388
+  index:
+    cmd: python -m src.build_index --config config.yaml --model_path 
+      outputs/final_model --raw_data_path data/fiqa --index_out 
+      data/index/fiqa.index
+    deps:
+    - path: data/fiqa
+      hash: md5
+      md5: 55942e366932bd3eb83d303a7dbc6734.dir
+      size: 48909169
+      nfiles: 5
+    - path: outputs/final_model
+      hash: md5
+      md5: 4e3d9a1de2dbdc3201e2ec1424c72cfe.dir
+      size: 134407598
+      nfiles: 7
+    - path: src/build_index.py
+      hash: md5
+      md5: 1a85131d4ba0389a4f2efea18f7c221a
+      size: 1915
+    outs:
+    - path: data/index/fiqa.index
+      hash: md5
+      md5: a137c05ea6a491b1f5a70194108567fe
+      size: 88532013
+    - path: data/index/fiqa.index.ids.pkl
+      hash: md5
+      md5: cc83f31e53e52045e1a40de239dfeb06
+      size: 508183

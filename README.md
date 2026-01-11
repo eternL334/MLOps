@@ -45,15 +45,61 @@
 ## Установка
 
 ```bash
-# Установка зависимостей
+git clone https://github.com/eternL334/MLOps
+cd MLOps
 pip install -r requirements.txt
 
-# Finetune and evaluation
-python main.py --config config.yaml 
+dvc repro # full pipeline
 
-# Only evaluation of pretrained model (from config)
-python main.py --config config.yaml --eval-only
+dvc repro prepare   # preprocessing
+dvc repro train     # training
+dvc repro evaluate  # evaluation
 
-# Only evaluation of finetuned model (from path)
-python main.py --config config.yaml --eval-only --model-path ./outputs/final_model
+mlflow ui # for metrics ui
+
+```
+
+## Построение Docker образа
+
+
+```bash
+dvc repro # full pipeline
+
+docker build -t ml-app:v1 . # build docker image
+
+docker run --rm \
+  -v "$(pwd)/test_input.csv":/data/input.csv \
+  -v "$(pwd)/predictions":/data/output \
+  -v "$(pwd)/data/fiqa":/data/corpus/fiqa \
+  ml-app:v1 \
+  --input_path /data/input.csv \
+  --output_path /data/output/preds.csv \
+  --raw_data_path /data/corpus/fiqa \
+  --index_path /app/data/index/fiqa.index
+```
+
+## Запуск TorchServe
+
+```bash
+python -m src.dump_corpus
+
+
+mkdir -p model_store
+
+torch-model-archiver --model-name my-retriever \
+  --version 1.0 \
+  --serialized-file outputs/final_model/model.safetensors \
+  --handler src/handler.py \
+  --extra-files "outputs/final_model/config.json,outputs/final_model/retriever_config.json,outputs/final_model/tokenizer_config.json,outputs/final_model/tokenizer_config.json,outputs/final_model/vocab.txt,data/index/fiqa.index,data/index/fiqa.index.ids.pkl,data/corpus_map.pkl" \
+  --export-path model_store
+
+
+docker build -f Dockerfile.serve -t mymodel-serve:v1 .
+
+docker run --rm -it -p 8080:8080 -p 8081:8081 mymodel-serve:v1
+
+curl -X POST http://localhost:8080/predictions/my-retriever \
+     -H "Content-Type: application/json" \
+     -d '{"query": "What is inflation?"}'
+
 ```

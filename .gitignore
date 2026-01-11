@@ -1,0 +1,12 @@
+venv
+.pytest_cache
+data_cache
+logs
+outputs
+*.ipynb
+*.zip
+metrics.json
+mlruns
+predictions
+model_store
+__pycache__

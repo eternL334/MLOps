@@ -1,0 +1,22 @@
+FROM pytorch/torchserve:latest-cpu
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+
+COPY requirements.docker.txt .
+RUN pip install --no-cache-dir -r requirements.docker.txt
+
+USER model-server
+
+COPY model_store/my-retriever.mar /home/model-server/model-store/
+
+COPY config.properties /home/model-server/config.properties
+
+CMD ["torchserve", \
+     "--start", \
+     "--model-store", "/home/model-server/model-store", \
+     "--ts-config", "/home/model-server/config.properties"]

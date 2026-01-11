@@ -7,6 +7,17 @@ from typing import Dict, List, Tuple
 import faiss
 from collections import defaultdict
 
+import argparse
+import json
+import os
+import sys
+import pickle
+
+from .config import load_config
+from .utils import setup_logging, set_seed
+from .data_loader import FiQADataset
+from .model import DenseRetriever
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,6 +99,43 @@ class VectorIndex:
     def get_doc_id(self, idx: int) -> str:
         """Get document ID by index"""
         return self.doc_ids[idx]
+    
+    def save(self, path: str):
+        """Save index and doc_ids to disk"""
+        if self.use_gpu:
+            logger.info("Moving index to CPU before saving...")
+            cpu_index = faiss.index_gpu_to_cpu(self.index)
+        else:
+            cpu_index = self.index
+        
+        logger.info(f"Saving FAISS index to {path}...")
+        faiss.write_index(cpu_index, path)
+        
+        ids_path = path + ".ids.pkl"
+        with open(ids_path, 'wb') as f:
+            pickle.dump(self.doc_ids, f)
+        logger.info(f"Saved {len(self.doc_ids)} doc IDs to {ids_path}")
+
+    @classmethod
+    def load(cls, path: str):
+        """Load index from disk"""
+        logger.info(f"Loading FAISS index from {path}...")
+        
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Index file not found: {path}")
+            
+        index = faiss.read_index(path)
+        
+        ids_path = path + ".ids.pkl"
+        with open(ids_path, 'rb') as f:
+            doc_ids = pickle.load(f)
+            
+        instance = cls(dimension=index.d, metric="cosine", use_gpu=False)
+        instance.index = index
+        instance.doc_ids = doc_ids
+        
+        logger.info(f"Index loaded. Size: {index.ntotal}")
+        return instance
 
 
 class RetrievalEvaluator:
@@ -265,3 +313,54 @@ def evaluate_model(
         logger.info(f"  {metric_name}: {value:.4f}")
     
     return metrics
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Evaluate Dense Retriever (DVC Stage)")
+    
+    parser.add_argument("--config", type=str, required=True, help="Путь к конфигу")
+    parser.add_argument("--model_path", type=str, required=True, help="Путь к папке с моделью (output от train)")
+    parser.add_argument("--raw_data_path", type=str, required=True, help="Путь папки с сырыми данными (из dvc add)")
+    parser.add_argument("--metrics_file", type=str, required=True, help="Куда сохранить JSON с метриками")
+    
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+    setup_logging(log_dir=config.experiment.log_dir, log_file="evaluate_dvc.log")
+    set_seed(config.experiment.random_seed)
+
+    logger.info("DVC Evaluation Stage Started")
+
+    logger.info(f"Loading data from {args.raw_data_path}")
+    dataset = FiQADataset(
+        dataset_name=config.data.dataset_name,
+        cache_dir=os.path.dirname(args.raw_data_path) 
+    )
+    dataset.load_data()
+
+    logger.info(f"Loading model from {args.model_path}")
+    model = DenseRetriever.load_model(model_path=args.model_path)
+
+    metrics = {}
+    
+    logger.info("Evaluating on DEV split")
+    metrics['dev'] = evaluate_model(
+        model=model,
+        dataset=dataset,
+        config=config,
+        split="dev"
+    )
+
+    logger.info("Evaluating on TEST split")
+    metrics['test'] = evaluate_model(
+        model=model,
+        dataset=dataset,
+        config=config,
+        split="test"
+    )
+
+    logger.info(f"Saving metrics to {args.metrics_file}")
+    with open(args.metrics_file, 'w') as f:
+        json.dump(metrics, f, indent=2)
+
+    logger.info("Evaluation completed successfully.")
