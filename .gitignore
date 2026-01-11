@@ -7,4 +7,5 @@ outputs
 *.zip
 metrics.json
 mlruns
+predictions
 __pycache__

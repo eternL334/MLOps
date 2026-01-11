@@ -60,10 +60,38 @@ stages:
       nfiles: 7
     - path: src/evaluate.py
       hash: md5
-      md5: 619b048a4daa5851278e9c0af71a99dc
-      size: 10448
+      md5: d1b991987cacfb302fa7f789f9764522
+      size: 11724
     outs:
     - path: metrics.json
       hash: md5
       md5: 13adaa7f0174d8036f2a6ff3cf6dd475
       size: 1388
+  index:
+    cmd: python -m src.build_index --config config.yaml --model_path 
+      outputs/final_model --raw_data_path data/fiqa --index_out 
+      data/index/fiqa.index
+    deps:
+    - path: data/fiqa
+      hash: md5
+      md5: 55942e366932bd3eb83d303a7dbc6734.dir
+      size: 48909169
+      nfiles: 5
+    - path: outputs/final_model
+      hash: md5
+      md5: 4e3d9a1de2dbdc3201e2ec1424c72cfe.dir
+      size: 134407598
+      nfiles: 7
+    - path: src/build_index.py
+      hash: md5
+      md5: 1a85131d4ba0389a4f2efea18f7c221a
+      size: 1915
+    outs:
+    - path: data/index/fiqa.index
+      hash: md5
+      md5: a137c05ea6a491b1f5a70194108567fe
+      size: 88532013
+    - path: data/index/fiqa.index.ids.pkl
+      hash: md5
+      md5: cc83f31e53e52045e1a40de239dfeb06
+      size: 508183

@@ -2,88 +2,67 @@ import argparse
 import os
 import sys
 import pandas as pd
-import torch
-from tqdm import tqdm
+import logging
 
-if __name__ == "__main__" and __package__ is None:
-    sys.path.append(os.getcwd())
+from .model import DenseRetriever
+from .evaluate import VectorIndex
+from .data_loader import FiQADataset 
 
-from src.model import DenseRetriever
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def main():
-    parser = argparse.ArgumentParser(description="Offline Inference inside Docker")
-    parser.add_argument("--input_path", type=str, required=True, help="input CSV file")
-    parser.add_argument("--output_path", type=str, required=True, help="output CSV file")
-    parser.add_argument("--model_path", type=str, default="outputs/final_model", help="path to model")
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input_path", type=str, required=True)
+    parser.add_argument("--output_path", type=str, required=True)
+    parser.add_argument("--model_path", type=str, default="outputs/final_model")
+    parser.add_argument("--index_path", type=str, required=True, help="Путь к файлу .index")
+    parser.add_argument("--raw_data_path", type=str, required=True, help="Путь к корпусу (для текстов)")
+    parser.add_argument("--top_k", type=int, default=5)
     args = parser.parse_args()
 
-    print(f"Starting inference...")
-    print(f"Input: {args.input_path}")
-    print(f"Output: {args.output_path}")
-    print(f"Model: {args.model_path}")
+    logger.info("Loading model...")
+    model = DenseRetriever.load_model(args.model_path)
 
-    try:
-        df = pd.read_csv(args.input_path)
-        if 'query' not in df.columns:
-            raise ValueError("input CSV must contain column 'query'")
-        data = df['query'].tolist()
-        ids = df['id'].tolist() if 'id' in df.columns else list(range(len(data)))
-    except Exception as e:
-        print(f"Error reading input file: {e}")
-        sys.exit(1)
-    
-    data_with_prefix = ["query: " + text for text in data]
+    logger.info(f"Loading index from {args.index_path}...")
+    index = VectorIndex.load(args.index_path)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Loading model on {device}...")
-    
-    try:
-        model = DenseRetriever.load_model(args.model_path)
-        model.model.to(device)
-    except Exception as e:
-        print(f"Failed to load model: {e}")
-        sys.exit(1)
+    logger.info("Loading corpus map...")
+    dataset = FiQADataset(dataset_name="fiqa", cache_dir=os.path.dirname(args.raw_data_path))
+    dataset.load_data()
+    corpus_map = {did: d['title'] + ' ' + d['text'] for did, d in dataset.corpus.items()}
 
-    print(f"Processing {len(data)} queries...")
-    all_embeddings = []
+    df = pd.read_csv(args.input_path)
+    queries = df['query'].tolist()
+    query_ids = df['id'].tolist() if 'id' in df.columns else list(range(len(queries)))
     
-    batch_size = args.batch_size
+    queries_prefix = ["query: " + q for q in queries]
     
-    with torch.no_grad():
-        for i in tqdm(range(0, len(data_with_prefix), batch_size)):
-            batch_texts = data_with_prefix[i : i + batch_size]
-            
-            inputs = model.tokenizer(
-                batch_texts, 
-                padding=True, 
-                truncation=True, 
-                max_length=512, 
-                return_tensors='pt'
-            ).to(device)
-            
-            input_ids = inputs['input_ids']
-            attention_mask = inputs['attention_mask']
-            
-            outputs = model.model(input_ids=input_ids, attention_mask=attention_mask)
-            embeddings = model.mean_pooling(outputs, attention_mask)
-            
-            if model.normalize_embeddings:
-                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
-            
-            all_embeddings.extend(embeddings.cpu().numpy().tolist())
+    logger.info(f"Encoding {len(queries)} queries...")
+    q_embeddings = model.encode(queries_prefix, batch_size=32, show_progress=True)
+    
+    logger.info("Searching...")
+    scores, indices = index.search(q_embeddings, top_k=args.top_k)
 
-    print("Saving results...")
-    output_df = pd.DataFrame({
-        'id': ids,
-        'query': data,
-        'embedding': all_embeddings
-    })
-    
+    results = []
+    for i, q_id in enumerate(query_ids):
+        for rank, idx in enumerate(indices[i]):
+            if idx == -1: continue 
+            
+            doc_id = index.get_doc_id(idx) 
+            doc_text = corpus_map.get(doc_id, "")
+            
+            results.append({
+                'query_id': q_id,
+                'rank': rank + 1,
+                'doc_id': doc_id,
+                'score': float(scores[i][rank]),
+                'text': doc_text[:500] 
+            })
+            
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
-    
-    output_df.to_csv(args.output_path, index=False)
-    print(f"Done! Predictions saved to {args.output_path}")
+    pd.DataFrame(results).to_csv(args.output_path, index=False)
+    logger.info(f"Saved to {args.output_path}")
 
 if __name__ == "__main__":
     main()

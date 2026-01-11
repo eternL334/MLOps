@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import sys
+import pickle
 
 from .config import load_config
 from .utils import setup_logging, set_seed
@@ -98,6 +99,43 @@ class VectorIndex:
     def get_doc_id(self, idx: int) -> str:
         """Get document ID by index"""
         return self.doc_ids[idx]
+    
+    def save(self, path: str):
+        """Save index and doc_ids to disk"""
+        if self.use_gpu:
+            logger.info("Moving index to CPU before saving...")
+            cpu_index = faiss.index_gpu_to_cpu(self.index)
+        else:
+            cpu_index = self.index
+        
+        logger.info(f"Saving FAISS index to {path}...")
+        faiss.write_index(cpu_index, path)
+        
+        ids_path = path + ".ids.pkl"
+        with open(ids_path, 'wb') as f:
+            pickle.dump(self.doc_ids, f)
+        logger.info(f"Saved {len(self.doc_ids)} doc IDs to {ids_path}")
+
+    @classmethod
+    def load(cls, path: str):
+        """Load index from disk"""
+        logger.info(f"Loading FAISS index from {path}...")
+        
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Index file not found: {path}")
+            
+        index = faiss.read_index(path)
+        
+        ids_path = path + ".ids.pkl"
+        with open(ids_path, 'rb') as f:
+            doc_ids = pickle.load(f)
+            
+        instance = cls(dimension=index.d, metric="cosine", use_gpu=False)
+        instance.index = index
+        instance.doc_ids = doc_ids
+        
+        logger.info(f"Index loaded. Size: {index.ntotal}")
+        return instance
 
 
 class RetrievalEvaluator:

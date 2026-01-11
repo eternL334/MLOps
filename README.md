@@ -58,3 +58,22 @@ dvc repro evaluate  # evaluation
 mlflow ui # for metrics ui
 
 ```
+
+## Построение Docker образа
+
+
+```bash
+dvc repro # full pipeline
+
+docker build -t ml-app:v1 . # build docker image
+
+docker run --rm \
+  -v "$(pwd)/test_input.csv":/data/input.csv \
+  -v "$(pwd)/predictions":/data/output \
+  -v "$(pwd)/data/fiqa":/data/corpus/fiqa \
+  ml-app:v1 \
+  --input_path /data/input.csv \
+  --output_path /data/output/preds.csv \
+  --raw_data_path /data/corpus/fiqa \
+  --index_path /app/data/index/fiqa.index
+```

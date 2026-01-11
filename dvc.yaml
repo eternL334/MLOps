@@ -15,6 +15,16 @@ stages:
       - config.yaml
     outs:
       - outputs/final_model
+    
+  index:
+    cmd: python -m src.build_index --config config.yaml --model_path outputs/final_model --raw_data_path data/fiqa --index_out data/index/fiqa.index
+    deps:
+      - outputs/final_model
+      - data/fiqa
+      - src/build_index.py
+    outs:
+      - data/index/fiqa.index         
+      - data/index/fiqa.index.ids.pkl 
 
   evaluate:
     cmd: python -m src.evaluate --config config.yaml --model_path outputs/final_model --raw_data_path data/fiqa --metrics_file metrics.json
