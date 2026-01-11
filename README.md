@@ -77,3 +77,29 @@ docker run --rm \
   --raw_data_path /data/corpus/fiqa \
   --index_path /app/data/index/fiqa.index
 ```
+
+## Запуск TorchServe
+
+```bash
+python -m src.dump_corpus
+
+
+mkdir -p model_store
+
+torch-model-archiver --model-name my-retriever \
+  --version 1.0 \
+  --serialized-file outputs/final_model/model.safetensors \
+  --handler src/handler.py \
+  --extra-files "outputs/final_model/config.json,outputs/final_model/retriever_config.json,outputs/final_model/tokenizer_config.json,outputs/final_model/tokenizer_config.json,outputs/final_model/vocab.txt,data/index/fiqa.index,data/index/fiqa.index.ids.pkl,data/corpus_map.pkl" \
+  --export-path model_store
+
+
+docker build -f Dockerfile.serve -t mymodel-serve:v1 .
+
+docker run --rm -it -p 8080:8080 -p 8081:8081 mymodel-serve:v1
+
+curl -X POST http://localhost:8080/predictions/my-retriever \
+     -H "Content-Type: application/json" \
+     -d '{"query": "What is inflation?"}'
+
+```

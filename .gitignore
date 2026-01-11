@@ -8,4 +8,5 @@ outputs
 metrics.json
 mlruns
 predictions
+model_store
 __pycache__
